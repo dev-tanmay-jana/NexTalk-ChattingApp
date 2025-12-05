@@ -26,7 +26,7 @@ export const userSocketMap = {};
 //socket.io connection
 io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId;
-    console.log(`User connected: ${userId}, Socket ID: ${socket.id}`);
+    // console.log(`User connected: ${userId}, Socket ID: ${socket.id}`);
     if (userId) {
         userSocketMap[userId] = socket.id;
     }
@@ -35,7 +35,7 @@ io.on('connection', (socket) => {
 
     //handle disconnection
     socket.on('disconnect', () => {
-        console.log(`User disconnected: ${userId}, Socket ID: ${socket.id}`);
+        // console.log(`User disconnected: ${userId}, Socket ID: ${socket.id}`);
         if (userId && userSocketMap[userId]) {
             delete userSocketMap[userId];
             //emit online users
@@ -67,6 +67,7 @@ if(process.env.NODE_ENV !== "production"){
     console.log(`Server is running on port http://localhost:${PORT}`);
 });
 }
+
 
 //Export server for vercel
 export default server;
