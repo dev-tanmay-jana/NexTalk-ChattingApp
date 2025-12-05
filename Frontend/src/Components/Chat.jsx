@@ -77,16 +77,43 @@ const Chat = () => {
               <div ref={scrollEnd}></div>
         </div>
         {/* chat input */}
-        <div className='absolute bottom-0 left-0 right-0 flex items-center gap-4 p-3 w-full px-2 py-2  border-gray-600'>
-              <div className='flex-1 flex items-center justify-between bg-gray-100/12 px-3 py-2 rounded-full gap-2'>
-                <input  onChange={(e)=>setInput(e.target.value)} value={input} onKeyDown={(e)=>e.key === "Enter"? handleSendMessgae(e) : null} type="text" placeholder='Send a message' className='flex-1 text-sm p-2 border-none rounded-lg outline-none text-white placeholder-gray-400' />
-                <input onChange={handleSendImage} type="file" id='image' accept='image/png, image/jpeg, image/jpg' hidden className='flex-1 text-sm p-3 border-none rounded-lg outline-none text-white placeholder-gray-400' />
+        <div className="absolute bottom-0 left-0 right-0 flex items-center gap-2 sm:gap-4 p-2 sm:p-3 w-full border-t border-gray-600 bg-[#282142]/80">
+            <div className="flex-1 flex items-center justify-between bg-gray-100/10 px-2 sm:px-3 py-1 sm:py-2 rounded-full gap-2">
+                {/* Text input */}
+                <input
+                onChange={(e) => setInput(e.target.value)}
+                value={input}
+                onKeyDown={(e) => (e.key === "Enter" ? handleSendMessgae(e) : null)}
+                type="text"
+                placeholder="Send a message"
+                className="flex-1 text-xs sm:text-sm p-1 sm:p-2 border-none rounded-lg outline-none text-white placeholder-gray-400 bg-transparent"
+                />
+
+                {/* File input (hidden) */}
+                <input
+                onChange={handleSendImage}
+                type="file"
+                id="image"
+                accept="image/png, image/jpeg, image/jpg"
+                hidden
+                />
                 <label htmlFor="image">
-                    <img src={assets.gallery_icon} alt="" className='w-5 mr-2 cursor-pointer' />
+                <img
+                    src={assets.gallery_icon}
+                    alt="gallery"
+                    className="w-4 sm:w-5 mr-1 sm:mr-2 cursor-pointer"
+                />
                 </label>
-              </div>
-              <img onClick={handleSendMessgae} src={assets.send_button} alt="" className='w-8 cursor-pointer' />
-        </div>
+            </div>
+
+            {/* Send button */}
+            <img
+                onClick={handleSendMessgae}
+                src={assets.send_button}
+                alt="send"
+                className="w-6 sm:w-8 cursor-pointer"
+            />
+            </div>
 
     </div>
   ) : (
