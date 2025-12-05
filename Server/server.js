@@ -2,7 +2,7 @@ import express from 'express';
 import "dotenv/config";
 import cors from 'cors';
 import http from 'http';
-import { connectDB } from './lib/connectdb.js';
+import { connectDB } from './lib/connectDB.js';
 import userroutes from './routes/userroute.js';
 import meggaseroutes from './routes/meggaseroutes.js';
 import { Server  } from 'socket.io';
