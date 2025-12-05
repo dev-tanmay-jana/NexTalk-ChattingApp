@@ -5,7 +5,7 @@ import { Route, Routes, Navigate } from 'react-router-dom';
 import Login from './Pages/LoginPage.jsx';   // ✅ make sure filename matches
 import Home from './Pages/Home.jsx';
 import Profile from './Pages/Profile.jsx';
-import bgImage from "./assets/bgImage.svg";  // ✅ cleaner import path
+import bgImage from "/bgImage.svg";  // ✅ cleaner import path
 import { AuthContext } from '../src/Context/AuthContext.jsx';
 import { useContext } from 'react';
 

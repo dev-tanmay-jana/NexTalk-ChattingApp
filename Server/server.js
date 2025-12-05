@@ -62,7 +62,13 @@ app.use('/message', meggaseroutes);
 await connectDB();
 
 //start server
-server.listen(PORT, () => {
+if(process.env.NODE_ENV !== "production"){
+    server.listen(PORT, () => {
     console.log(`Server is running on port http://localhost:${PORT}`);
 });
+}
+
+//Export server for vercel
+export default server;
+
 
