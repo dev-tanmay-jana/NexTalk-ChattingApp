@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useEffect } from 'react';
 
 const LeftSidebar = () => {
+      const [open, setOpen] = useState(false);
     const {getUsers, users, selectedUser, setSelectedUser,
             unSeenMessages,setUnSeenMessages, } = useContext(ChatContext);
 
@@ -32,14 +33,41 @@ const LeftSidebar = () => {
   <div className="p-2">
     <div className="flex justify-between items-center">
       <img src={assets.logo} alt="logo" className="w-40" />
-      <div className="relative py-2 group">
-        <img src={assets.menu_icon} alt="menu" className="w-6 cursor-pointer" />
-        <div className="absolute top-full right-0 z-20 w-32 p-3 rounded-md bg-[#282142] border border-gray-600 text-gray-100 hidden group-hover:block text-center">
-          <p onClick={() => navigate('/profile')} className="cursor-pointer text-sm">Edit Profile</p>
+         <div className="relative">
+      {/* Trigger button */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="px-3 py-2 bg-[#282142] text-gray-100 rounded-md"
+      >
+        ☰
+      </button>
+
+      {/* Dropdown menu */}
+      {open && (
+        <div className="absolute top-full right-0 z-20 w-32 p-3 rounded-md bg-[#282142] border border-gray-600 text-gray-100 text-center">
+          <p
+            onClick={() => {
+              navigate("/profile");
+              setOpen(false);
+            }}
+            className="cursor-pointer text-sm"
+          >
+            Edit Profile
+          </p>
           <hr className="my-2 border-t border-gray-500" />
-          <p onClick={()=>logoutUser()} className="cursor-pointer text-sm">Logout</p>
+          <p
+            onClick={() => {
+              logoutUser();
+              setOpen(false);
+            }}
+            className="cursor-pointer text-sm"
+          >
+            Logout
+          </p>
         </div>
-      </div>
+      )}
+    </div>
+
     </div>
 
     <div className="flex items-center gap-3 bg-[#2A2540] mt-1 px-4 py-3 rounded-full">
