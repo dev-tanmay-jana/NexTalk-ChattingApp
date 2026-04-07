@@ -2,8 +2,7 @@ import React, { useEffect,useContext,useRef,useState } from 'react'
 import { formatMessgaeTime } from '../Lib/Utils';
 import { ChatContext } from '../Context/ChatContext';
 import { AuthContext } from '../Context/AuthContext';
-import { MdOutlineVideoCall } from "react-icons/md";
-import { MdAddCall } from "react-icons/md";
+import { MdOutlineVideoCall, MdAddCall, MdMic, MdMicOff } from "react-icons/md";
 import toast from 'react-hot-toast';
 import assets from '../assets/assets.js';
 
@@ -20,6 +19,7 @@ const Chat = () => {
     const remoteVideoRef = useRef(null);
     const [inCall, setInCall] = useState(false);
     const [incomingCall, setIncomingCall] = useState(null);
+    const [muted, setMuted] = useState(false);
 
     const scrollEnd = useRef();
 
@@ -96,16 +96,28 @@ const Chat = () => {
     }, [socket]);
 
     const createPeerConnection = (targetUserId) => {
-        const pc = new RTCPeerConnection();
+        const pc = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+            ],
+        });
+
+        console.debug('Creating RTCPeerConnection for', targetUserId);
 
         pc.onicecandidate = (event) => {
+            console.debug('onicecandidate', event);
             if (event.candidate) {
                 socket.emit('ice-candidate', { to: targetUserId, candidate: event.candidate });
             }
         };
 
         pc.ontrack = (event) => {
+            console.debug('ontrack event', event);
             setRemoteStream(event.streams[0]);
+        };
+
+        pc.onconnectionstatechange = () => {
+            console.debug('PC connectionState', pc.connectionState);
         };
 
         pcRef.current = pc;
@@ -197,6 +209,25 @@ const Chat = () => {
         setIncomingCall(null);
     };
 
+    const toggleMute = async () => {
+        // Toggle local audio tracks
+        const newMuted = !muted;
+        setMuted(newMuted);
+        if (localStream) {
+            localStream.getAudioTracks().forEach((t) => {
+                t.enabled = !newMuted;
+            });
+        } else if (!newMuted) {
+            // If trying to unmute but no local stream yet, attempt to get audio
+            try {
+                const s = await startLocalStream();
+                if (s) s.getAudioTracks().forEach((t) => { t.enabled = true; });
+            } catch (err) {
+                console.warn('Unable to start local audio for unmute', err);
+            }
+        }
+    };
+
     // attach streams to video elements
     useEffect(() => {
         if (localVideoRef.current) {
@@ -265,6 +296,10 @@ const Chat = () => {
                         <video ref={localVideoRef} autoPlay muted playsInline className='w-full h-36 bg-black rounded' />
                         <div className='flex gap-2 mt-2'>
                             {incomingCall && <button onClick={handleAcceptCall} className='px-3 py-1 bg-green-600 rounded'>Accept</button>}
+                            <button onClick={toggleMute} className='px-3 py-1 bg-gray-700 rounded flex items-center gap-2'>
+                                {muted ? <MdMicOff className='text-white' /> : <MdMic className='text-white' />}
+                                <span className='text-sm text-white'>{muted ? 'Unmute' : 'Mute'}</span>
+                            </button>
                             <button onClick={() => { if(selectedUser && socket) socket.emit('end-call',{ to: selectedUser._id }); endCall(); }} className='px-3 py-1 bg-red-600 rounded'>End</button>
                         </div>
                     </div>
