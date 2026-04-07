@@ -44,6 +44,39 @@ io.on('connection', (socket) => {
         }
         
     });
+
+    // WebRTC signaling handlers
+    // Caller sends an offer to a specific user
+    socket.on('call-user', ({ to, offer }) => {
+        const receiverSocketId = userSocketMap[to];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit('incoming-call', { from: userId, offer });
+        }
+    });
+
+    // Callee sends answer back to caller
+    socket.on('make-answer', ({ to, answer }) => {
+        const callerSocketId = userSocketMap[to];
+        if (callerSocketId) {
+            io.to(callerSocketId).emit('call-answered', { from: userId, answer });
+        }
+    });
+
+    // Exchanging ICE candidates
+    socket.on('ice-candidate', ({ to, candidate }) => {
+        const targetSocketId = userSocketMap[to];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('ice-candidate', { from: userId, candidate });
+        }
+    });
+
+    // End call
+    socket.on('end-call', ({ to }) => {
+        const targetSocketId = userSocketMap[to];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call-ended', { from: userId });
+        }
+    });
 });
 
 //server middlewares
