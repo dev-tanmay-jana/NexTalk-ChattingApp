@@ -126,42 +126,69 @@ const Chat = () => {
 
     const startLocalStream = async () => {
         try {
+            // Detect if mobile device
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            // Mobile-friendly constraints with fallbacks
             const constraints = {
-                video: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
+                video: isMobile ? {
+                    width: { ideal: 640, min: 320 },
+                    height: { ideal: 480, min: 240 },
+                    facingMode: 'user'
+                } : {
+                    width: { ideal: 1280, min: 640 },
+                    height: { ideal: 720, min: 480 },
                     facingMode: 'user'
                 },
-                audio: true
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
             };
+            
+            console.log('Starting local stream, device is', isMobile ? 'mobile' : 'desktop');
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             console.log('Local stream acquired:', stream.getTracks());
             setLocalStream(stream);
             return stream;
         } catch (err) {
             console.error('getUserMedia error:', err.name, err.message, err);
-            // If video source can't be started, try audio-only fallback
+            // If video source can't be started, try relaxed constraints
             if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
                 try {
-                    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    console.log('Audio-only stream acquired:', audioStream.getTracks());
-                    setLocalStream(audioStream);
-                    toast('Video unavailable — using audio only');
-                    return audioStream;
+                    console.log('Trying with relaxed video constraints');
+                    const relaxedStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'user' },
+                        audio: true
+                    });
+                    console.log('Relaxed stream acquired:', relaxedStream.getTracks());
+                    setLocalStream(relaxedStream);
+                    toast('Using lower video quality - device constraint');
+                    return relaxedStream;
                 } catch (err2) {
-                    console.error('Audio-only fallback failed:', err2.name, err2.message, err2);
-                    toast.error('Unable to access microphone');
-                    return null;
+                    console.error('Relaxed constraints also failed, trying audio only:', err2.message);
+                    try {
+                        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        console.log('Audio-only stream acquired:', audioStream.getTracks());
+                        setLocalStream(audioStream);
+                        toast('Video unavailable — using audio only');
+                        return audioStream;
+                    } catch (err3) {
+                        console.error('Audio-only fallback failed:', err3.message);
+                        toast.error('Unable to access microphone');
+                        return null;
+                    }
                 }
             }
 
             // Permission denied - inform user and abort
             if (err.name === 'NotAllowedError' || err.name === 'SecurityError' || err.name === 'PermissionDeniedError') {
-                toast.error('Camera/microphone permission denied. Please enable permissions in browser settings.');
+                toast.error('Camera/microphone permission denied. Please enable in browser settings.');
                 return null;
             }
 
-            // Other errors: report and return null so the app can still attempt a call
+            // Other errors
             toast.error(`Unable to access camera/microphone: ${err.message}`);
             return null;
         }
@@ -365,27 +392,32 @@ const Chat = () => {
                     <div className='flex-1'>
                         <video 
                             ref={remoteVideoRef} 
-                            autoPlay={true}
-                            playsInline={true}
+                            autoPlay
+                            playsInline
                             controls={false}
-                            crossOrigin="anonymous"
-                            suppressHydrationWarning
-                            className='w-100 h-72 bg-black rounded object-cover'
+                            webkit-playsinline="true"
+                            x5-playsinline="true"
+                            style={{ 
+                                WebkitBackfaceVisibility: 'hidden',
+                                backfaceVisibility: 'hidden'
+                            }}
+                            className='w-full h-72 bg-black rounded object-cover'
                         />
                     </div>
                     <div className='w-30 flex flex-col items-center gap-2'>
                         <video 
                             ref={localVideoRef} 
-                            autoPlay={true}
-                            muted={true}
-                            playsInline={true}
+                            autoPlay
+                            muted
+                            playsInline
                             controls={false}
-                            crossOrigin="anonymous"
-                            suppressHydrationWarning
+                            webkit-playsinline="true"
+                            x5-playsinline="true"
                             style={{ 
                                 transform: 'scaleX(-1)',
                                 WebkitTransform: 'scaleX(-1)',
-                                WebkitBackfaceVisibility: 'hidden'
+                                WebkitBackfaceVisibility: 'hidden',
+                                backfaceVisibility: 'hidden'
                             }}
                             className='w-20 h-20 bg-black rounded object-cover'
                         />
