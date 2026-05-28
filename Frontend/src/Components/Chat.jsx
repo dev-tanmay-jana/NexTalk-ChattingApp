@@ -239,48 +239,48 @@ const Chat = () => {
     };
 
     // attach streams to video elements
-    useEffect(() => {
-        const localVideo = localVideoRef.current;
-        if (localVideo && localStream) {
-            console.log('Attaching local stream to video element, tracks:', localStream.getTracks().length);
-            try {
-                // Clear previous stream if any
-                if (localVideo.srcObject) {
-                    localVideo.srcObject.getTracks().forEach(track => track.stop());
-                }
-                
-                localVideo.srcObject = localStream;
-                
-                // Force video element to load
-                localVideo.onloadedmetadata = () => {
-                    console.log('Local video metadata loaded');
-                    localVideo.play().catch(err => {
-                        console.error('Error auto-playing local video:', err);
-                    });
-                };
-                
-                // Fallback: play immediately if metadata already loaded
-                if (localVideo.readyState >= 2) {
-                    localVideo.play().catch(err => {
-                        console.warn('Local video play error:', err);
-                    });
-                }
-                
-                // Log video element state
-                console.log('Local video element state:', {
-                    readyState: localVideo.readyState,
-                    networkState: localVideo.networkState,
-                    paused: localVideo.paused
-                });
-            } catch (err) {
-                console.error('Error attaching local stream:', err);
-            }
-        }
-        
-        return () => {
-            // Cleanup on unmount - don't stop tracks as they may be in use
-        };
-    }, [localStream]);
+   useEffect(() => {
+  const localVideo = localVideoRef.current;
+  if (localVideo && localStream) {
+    console.log('Attaching local stream to video element, tracks:', localStream.getTracks().length);
+
+    try {
+      // Do NOT stop tracks here — just replace srcObject
+      localVideo.srcObject = localStream;
+
+      // Mute local video to avoid echo and autoplay issues
+      localVideo.muted = true;
+
+      localVideo.onloadedmetadata = () => {
+        console.log('Local video metadata loaded');
+        localVideo.play().catch(err => {
+          console.error('Error auto-playing local video:', err);
+        });
+      };
+
+      if (localVideo.readyState >= 2) {
+        localVideo.play().catch(err => {
+          console.warn('Local video play error:', err);
+        });
+      }
+
+      console.log('Local video element state:', {
+        readyState: localVideo.readyState,
+        networkState: localVideo.networkState,
+        paused: localVideo.paused
+      });
+    } catch (err) {
+      console.error('Error attaching local stream:', err);
+    }
+  }
+
+  return () => {
+    // Cleanup: don’t stop tracks here, just clear srcObject
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+  };
+}, [localStream]);
 
     useEffect(() => {
         const remoteVideo = remoteVideoRef.current;
@@ -379,7 +379,7 @@ const Chat = () => {
                             autoPlay={true}
                             muted={true}
                             playsInline={true}
-                            controls={false}
+                            controls={true}
                             crossOrigin="anonymous"
                             suppressHydrationWarning
                             style={{ 
@@ -387,7 +387,7 @@ const Chat = () => {
                                 WebkitTransform: 'scaleX(-1)',
                                 WebkitBackfaceVisibility: 'hidden'
                             }}
-                            className='w-30 h-20 bg-black rounded object-cover'
+                            className='w-10 h-20 bg-black rounded object-cover'
                         />
                         <div className='flex gap-2 mt-2'>
                             {incomingCall && <button onClick={handleAcceptCall} className='px-3 py-1 bg-green-600 rounded'>Accept</button>}
