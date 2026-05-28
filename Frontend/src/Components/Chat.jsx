@@ -61,14 +61,10 @@ const Chat = () => {
         const handleCallAnswered = async ({ from, answer }) => {
             try {
                 if (pcRef.current) {
-                    console.log('Setting remote description (answer) from:', from);
                     await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-                    console.log('Remote description set successfully');
-                } else {
-                    console.error('No peer connection available for answer');
                 }
             } catch (err) {
-                console.error('Error setting remote description (answer):', err.name, err.message);
+                console.error('Error setting remote description (answer):', err);
             }
         };
 
@@ -103,48 +99,25 @@ const Chat = () => {
         const pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
             ],
         });
 
-        console.log('Creating RTCPeerConnection for', targetUserId);
+        console.debug('Creating RTCPeerConnection for', targetUserId);
 
         pc.onicecandidate = (event) => {
-            console.log('onicecandidate:', event.candidate ? 'found' : 'end');
+            console.debug('onicecandidate', event);
             if (event.candidate) {
                 socket.emit('ice-candidate', { to: targetUserId, candidate: event.candidate });
             }
         };
 
         pc.ontrack = (event) => {
-            console.log('ontrack event - streams:', event.streams.length, 'tracks:', event.track.kind);
-            if (event.streams && event.streams.length > 0) {
-                console.log('Setting remote stream from ontrack');
-                setRemoteStream(event.streams[0]);
-            } else if (event.track) {
-                console.log('Creating new MediaStream from track');
-                const newStream = new MediaStream([event.track]);
-                setRemoteStream(newStream);
-            }
-        };
-
-        // Fallback for older browsers
-        pc.onaddstream = (event) => {
-            console.log('onaddstream event (legacy)');
-            setRemoteStream(event.stream);
+            console.debug('ontrack event', event);
+            setRemoteStream(event.streams[0]);
         };
 
         pc.onconnectionstatechange = () => {
-            console.log('PC connectionState:', pc.connectionState, 'iceConnectionState:', pc.iceConnectionState, 'signalingState:', pc.signalingState);
-            
-            if (pc.connectionState === 'failed') {
-                console.error('Peer connection failed - attempting restart');
-                toast.error('Connection failed. Please try again.');
-            }
-        };
-
-        pc.onicegatheringstatechange = () => {
-            console.log('ICE gathering state:', pc.iceGatheringState);
+            console.debug('PC connectionState', pc.connectionState);
         };
 
         pcRef.current = pc;
@@ -197,25 +170,18 @@ const Chat = () => {
     const handleStartCall = async () => {
         if (!selectedUser || !socket) return;
         try {
-            console.log('Starting call to:', selectedUser._id);
             const stream = await startLocalStream();
-            if (!stream) {
-                toast.error('Cannot start call without media stream');
-                return;
-            }
             const pc = createPeerConnection(selectedUser._id);
-            console.log('Adding tracks to peer connection:', stream.getTracks().length);
-            stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+            if (stream) {
+                stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+            }
 
             const offer = await pc.createOffer();
-            console.log('Offer created, setting local description');
             await pc.setLocalDescription(offer);
-            console.log('Emitting call-user event');
             socket.emit('call-user', { to: selectedUser._id, offer });
             setInCall(true);
         } catch (err) {
-            console.error('Error starting call:', err.name, err.message);
-            toast.error('Failed to start call: ' + err.message);
+            console.error('Error starting call', err);
         }
     };
 
@@ -223,28 +189,19 @@ const Chat = () => {
         if (!incomingCall || !socket) return;
         try {
             const { from, offer } = incomingCall;
-            console.log('Accepting call from:', from);
             const stream = await startLocalStream();
-            if (!stream) {
-                toast.error('Cannot accept call without media stream');
-                return;
-            }
             const pc = createPeerConnection(from);
-            console.log('Adding tracks to peer connection:', stream.getTracks().length);
-            stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-            console.log('Setting remote description (offer)');
+            if (stream) {
+                stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+            }
             await pc.setRemoteDescription(new RTCSessionDescription(offer));
-            console.log('Creating answer');
             const answer = await pc.createAnswer();
-            console.log('Setting local description (answer)');
             await pc.setLocalDescription(answer);
-            console.log('Emitting make-answer event');
             socket.emit('make-answer', { to: from, answer });
             setInCall(true);
             setIncomingCall(null);
         } catch (err) {
-            console.error('Error accepting call:', err.name, err.message);
-            toast.error('Failed to accept call: ' + err.message);
+            console.error('Error accepting call', err);
         }
     };
 
@@ -283,22 +240,77 @@ const Chat = () => {
 
     // attach streams to video elements
     useEffect(() => {
-        if (localVideoRef.current && localStream) {
-            console.log('Attaching local stream to video element');
-            localVideoRef.current.srcObject = localStream;
-            localVideoRef.current.play().catch(err => {
-                console.error('Error playing local video:', err);
-            });
+        const localVideo = localVideoRef.current;
+        if (localVideo && localStream) {
+            console.log('Attaching local stream to video element, tracks:', localStream.getTracks().length);
+            try {
+                // Clear previous stream if any
+                if (localVideo.srcObject) {
+                    localVideo.srcObject.getTracks().forEach(track => track.stop());
+                }
+                
+                localVideo.srcObject = localStream;
+                
+                // Force video element to load
+                localVideo.onloadedmetadata = () => {
+                    console.log('Local video metadata loaded');
+                    localVideo.play().catch(err => {
+                        console.error('Error auto-playing local video:', err);
+                    });
+                };
+                
+                // Fallback: play immediately if metadata already loaded
+                if (localVideo.readyState >= 2) {
+                    localVideo.play().catch(err => {
+                        console.warn('Local video play error:', err);
+                    });
+                }
+                
+                // Log video element state
+                console.log('Local video element state:', {
+                    readyState: localVideo.readyState,
+                    networkState: localVideo.networkState,
+                    paused: localVideo.paused
+                });
+            } catch (err) {
+                console.error('Error attaching local stream:', err);
+            }
         }
+        
+        return () => {
+            // Cleanup on unmount - don't stop tracks as they may be in use
+        };
     }, [localStream]);
 
     useEffect(() => {
-        if (remoteVideoRef.current && remoteStream) {
-            console.log('Attaching remote stream to video element');
-            remoteVideoRef.current.srcObject = remoteStream;
-            remoteVideoRef.current.play().catch(err => {
-                console.error('Error playing remote video:', err);
-            });
+        const remoteVideo = remoteVideoRef.current;
+        if (remoteVideo && remoteStream) {
+            console.log('Attaching remote stream to video element, tracks:', remoteStream.getTracks().length);
+            try {
+                remoteVideo.srcObject = remoteStream;
+                
+                remoteVideo.onloadedmetadata = () => {
+                    console.log('Remote video metadata loaded');
+                    remoteVideo.play().catch(err => {
+                        console.error('Error auto-playing remote video:', err);
+                    });
+                };
+                
+                // Fallback: play immediately
+                if (remoteVideo.readyState >= 2) {
+                    remoteVideo.play().catch(err => {
+                        console.warn('Remote video play error:', err);
+                    });
+                }
+                
+                console.log('Remote video element state:', {
+                    readyState: remoteVideo.readyState,
+                    networkState: remoteVideo.networkState,
+                    paused: remoteVideo.paused
+                });
+            } catch (err) {
+                console.error('Error attaching remote stream:', err);
+            }
         }
     }, [remoteStream]);
 
@@ -353,21 +365,29 @@ const Chat = () => {
                     <div className='flex-1'>
                         <video 
                             ref={remoteVideoRef} 
-                            autoPlay 
-                            playsInline 
+                            autoPlay={true}
+                            playsInline={true}
                             controls={false}
+                            crossOrigin="anonymous"
+                            suppressHydrationWarning
                             className='w-full h-72 bg-black rounded object-cover'
                         />
                     </div>
                     <div className='w-48 flex flex-col items-center gap-2'>
                         <video 
                             ref={localVideoRef} 
-                            autoPlay 
-                            muted 
-                            playsInline 
+                            autoPlay={true}
+                            muted={true}
+                            playsInline={true}
                             controls={false}
-                            style={{ transform: 'scaleX(-1)' }}
-                            className='w-full h-36 bg-black rounded object-cover'
+                            crossOrigin="anonymous"
+                            suppressHydrationWarning
+                            style={{ 
+                                transform: 'scaleX(-1)',
+                                WebkitTransform: 'scaleX(-1)',
+                                WebkitBackfaceVisibility: 'hidden'
+                            }}
+                            className='w-30 h-20 bg-black rounded object-cover'
                         />
                         <div className='flex gap-2 mt-2'>
                             {incomingCall && <button onClick={handleAcceptCall} className='px-3 py-1 bg-green-600 rounded'>Accept</button>}
