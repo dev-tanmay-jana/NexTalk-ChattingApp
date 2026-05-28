@@ -370,16 +370,16 @@ const Chat = () => {
                             controls={false}
                             crossOrigin="anonymous"
                             suppressHydrationWarning
-                            className='w-full h-72 bg-black rounded object-cover'
+                            className='w-100 h-72 bg-black rounded object-cover'
                         />
                     </div>
-                    <div className='w-48 flex flex-col items-center gap-2'>
+                    <div className='w-30 flex flex-col items-center gap-2'>
                         <video 
                             ref={localVideoRef} 
                             autoPlay={true}
                             muted={true}
                             playsInline={true}
-                            controls={true}
+                            controls={false}
                             crossOrigin="anonymous"
                             suppressHydrationWarning
                             style={{ 
@@ -387,7 +387,7 @@ const Chat = () => {
                                 WebkitTransform: 'scaleX(-1)',
                                 WebkitBackfaceVisibility: 'hidden'
                             }}
-                            className='w-10 h-20 bg-black rounded object-cover'
+                            className='w-20 h-20 bg-black rounded object-cover'
                         />
                         <div className='flex gap-2 mt-2'>
                             {incomingCall && <button onClick={handleAcceptCall} className='px-3 py-1 bg-green-600 rounded'>Accept</button>}
