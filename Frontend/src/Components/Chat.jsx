@@ -225,6 +225,19 @@ const Chat = () => {
 
         setInCall(true);
 
+            setTimeout(async () => {
+                if (localVideoRef.current && stream) {
+                    try {
+                        localVideoRef.current.srcObject = stream;
+                        await localVideoRef.current.play();
+
+                        console.log("Manual caller preview success");
+                    } catch (err) {
+                        console.log(err);
+                    }
+                }
+            }, 500);
+
     } catch (err) {
         console.error("Error starting call:", err);
     }
@@ -284,54 +297,55 @@ const Chat = () => {
     };
 
     // attach streams to video elements
- useEffect(() => {
-    const localVideo = localVideoRef.current;
+useEffect(() => {
+    if (!inCall || !localStream) return;
 
-    if (!localVideo || !localStream) return;
+    const timer = setTimeout(async () => {
+        const video = localVideoRef.current;
 
-    console.log("Setting local video stream");
+        if (!video) {
+            console.log("Local video element not found");
+            return;
+        }
 
-    localVideo.srcObject = localStream;
-    localVideo.muted = true;
-
-    const playVideo = async () => {
         try {
-            await localVideo.play();
-            console.log("Local video playing");
+            video.srcObject = localStream;
+            video.muted = true;
+
+            await video.play();
+
+            console.log("Caller local video started");
         } catch (err) {
-            console.error("Local video play failed:", err);
+            console.error("Local caller video error:", err);
         }
-    };
+    }, 300);
 
-    playVideo();
+    return () => clearTimeout(timer);
 
-    return () => {
-        if (localVideo) {
-            localVideo.srcObject = null;
-        }
-    };
-}, [localStream]);
+}, [localStream, inCall]);
 
     useEffect(() => {
-    const remoteVideo = remoteVideoRef.current;
+    if (!remoteStream || !inCall) return;
 
-    if (!remoteVideo || !remoteStream) return;
+    const timer = setTimeout(async () => {
+        const video = remoteVideoRef.current;
 
-    console.log("Setting remote video stream");
+        if (!video) return;
 
-    remoteVideo.srcObject = remoteStream;
-
-    const playVideo = async () => {
         try {
-            await remoteVideo.play();
-            console.log("Remote video playing");
-        } catch (err) {
-            console.error("Remote video play failed:", err);
-        }
-    };
+            video.srcObject = remoteStream;
 
-    playVideo();
-}, [remoteStream]);
+            await video.play();
+
+            console.log("Remote video started");
+        } catch (err) {
+            console.error("Remote video error:", err);
+        }
+    }, 300);
+
+    return () => clearTimeout(timer);
+
+}, [remoteStream, inCall]);
 
     useEffect(()=>{
         if(scrollEnd.current && messages){
@@ -382,17 +396,10 @@ const Chat = () => {
             <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60'>
                 <div className='bg-[#0f1724] p-4 rounded-lg w-[95%] max-w-4xl flex gap-4'>
                     <div className='flex-1'>
-                        <video 
-                            ref={remoteVideoRef} 
+                        <video
+                            ref={remoteVideoRef}
                             autoPlay
                             playsInline
-                            controls={false}
-                            webkit-playsinline="true"
-                            x5-playsinline="true"
-                            style={{ 
-                                WebkitBackfaceVisibility: 'hidden',
-                                backfaceVisibility: 'hidden'
-                            }}
                             className='w-full h-72 bg-black rounded object-cover'
                         />
                     </div>
