@@ -61,10 +61,14 @@ const Chat = () => {
         const handleCallAnswered = async ({ from, answer }) => {
             try {
                 if (pcRef.current) {
+                    console.log('Setting remote description (answer) from:', from);
                     await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+                    console.log('Remote description set successfully');
+                } else {
+                    console.error('No peer connection available for answer');
                 }
             } catch (err) {
-                console.error('Error setting remote description (answer):', err);
+                console.error('Error setting remote description (answer):', err.name, err.message);
             }
         };
 
@@ -99,25 +103,48 @@ const Chat = () => {
         const pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
             ],
         });
 
-        console.debug('Creating RTCPeerConnection for', targetUserId);
+        console.log('Creating RTCPeerConnection for', targetUserId);
 
         pc.onicecandidate = (event) => {
-            console.debug('onicecandidate', event);
+            console.log('onicecandidate:', event.candidate ? 'found' : 'end');
             if (event.candidate) {
                 socket.emit('ice-candidate', { to: targetUserId, candidate: event.candidate });
             }
         };
 
         pc.ontrack = (event) => {
-            console.debug('ontrack event', event);
-            setRemoteStream(event.streams[0]);
+            console.log('ontrack event - streams:', event.streams.length, 'tracks:', event.track.kind);
+            if (event.streams && event.streams.length > 0) {
+                console.log('Setting remote stream from ontrack');
+                setRemoteStream(event.streams[0]);
+            } else if (event.track) {
+                console.log('Creating new MediaStream from track');
+                const newStream = new MediaStream([event.track]);
+                setRemoteStream(newStream);
+            }
+        };
+
+        // Fallback for older browsers
+        pc.onaddstream = (event) => {
+            console.log('onaddstream event (legacy)');
+            setRemoteStream(event.stream);
         };
 
         pc.onconnectionstatechange = () => {
-            console.debug('PC connectionState', pc.connectionState);
+            console.log('PC connectionState:', pc.connectionState, 'iceConnectionState:', pc.iceConnectionState, 'signalingState:', pc.signalingState);
+            
+            if (pc.connectionState === 'failed') {
+                console.error('Peer connection failed - attempting restart');
+                toast.error('Connection failed. Please try again.');
+            }
+        };
+
+        pc.onicegatheringstatechange = () => {
+            console.log('ICE gathering state:', pc.iceGatheringState);
         };
 
         pcRef.current = pc;
@@ -126,20 +153,30 @@ const Chat = () => {
 
     const startLocalStream = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            const constraints = {
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user'
+                },
+                audio: true
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log('Local stream acquired:', stream.getTracks());
             setLocalStream(stream);
             return stream;
         } catch (err) {
-            console.warn('getUserMedia error:', err.name, err.message);
+            console.error('getUserMedia error:', err.name, err.message, err);
             // If video source can't be started, try audio-only fallback
             if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
                 try {
                     const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    console.log('Audio-only stream acquired:', audioStream.getTracks());
                     setLocalStream(audioStream);
                     toast('Video unavailable — using audio only');
                     return audioStream;
                 } catch (err2) {
-                    console.warn('Audio-only fallback failed:', err2.name, err2.message);
+                    console.error('Audio-only fallback failed:', err2.name, err2.message, err2);
                     toast.error('Unable to access microphone');
                     return null;
                 }
@@ -147,12 +184,12 @@ const Chat = () => {
 
             // Permission denied - inform user and abort
             if (err.name === 'NotAllowedError' || err.name === 'SecurityError' || err.name === 'PermissionDeniedError') {
-                toast.error('Camera/microphone permission denied');
+                toast.error('Camera/microphone permission denied. Please enable permissions in browser settings.');
                 return null;
             }
 
             // Other errors: report and return null so the app can still attempt a call
-            toast.error('Unable to access camera/microphone');
+            toast.error(`Unable to access camera/microphone: ${err.message}`);
             return null;
         }
     };
@@ -160,18 +197,25 @@ const Chat = () => {
     const handleStartCall = async () => {
         if (!selectedUser || !socket) return;
         try {
+            console.log('Starting call to:', selectedUser._id);
             const stream = await startLocalStream();
-            const pc = createPeerConnection(selectedUser._id);
-            if (stream) {
-                stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+            if (!stream) {
+                toast.error('Cannot start call without media stream');
+                return;
             }
+            const pc = createPeerConnection(selectedUser._id);
+            console.log('Adding tracks to peer connection:', stream.getTracks().length);
+            stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
             const offer = await pc.createOffer();
+            console.log('Offer created, setting local description');
             await pc.setLocalDescription(offer);
+            console.log('Emitting call-user event');
             socket.emit('call-user', { to: selectedUser._id, offer });
             setInCall(true);
         } catch (err) {
-            console.error('Error starting call', err);
+            console.error('Error starting call:', err.name, err.message);
+            toast.error('Failed to start call: ' + err.message);
         }
     };
 
@@ -179,19 +223,28 @@ const Chat = () => {
         if (!incomingCall || !socket) return;
         try {
             const { from, offer } = incomingCall;
+            console.log('Accepting call from:', from);
             const stream = await startLocalStream();
-            const pc = createPeerConnection(from);
-            if (stream) {
-                stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+            if (!stream) {
+                toast.error('Cannot accept call without media stream');
+                return;
             }
+            const pc = createPeerConnection(from);
+            console.log('Adding tracks to peer connection:', stream.getTracks().length);
+            stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+            console.log('Setting remote description (offer)');
             await pc.setRemoteDescription(new RTCSessionDescription(offer));
+            console.log('Creating answer');
             const answer = await pc.createAnswer();
+            console.log('Setting local description (answer)');
             await pc.setLocalDescription(answer);
+            console.log('Emitting make-answer event');
             socket.emit('make-answer', { to: from, answer });
             setInCall(true);
             setIncomingCall(null);
         } catch (err) {
-            console.error('Error accepting call', err);
+            console.error('Error accepting call:', err.name, err.message);
+            toast.error('Failed to accept call: ' + err.message);
         }
     };
 
@@ -230,14 +283,22 @@ const Chat = () => {
 
     // attach streams to video elements
     useEffect(() => {
-        if (localVideoRef.current) {
+        if (localVideoRef.current && localStream) {
+            console.log('Attaching local stream to video element');
             localVideoRef.current.srcObject = localStream;
+            localVideoRef.current.play().catch(err => {
+                console.error('Error playing local video:', err);
+            });
         }
     }, [localStream]);
 
     useEffect(() => {
-        if (remoteVideoRef.current) {
+        if (remoteVideoRef.current && remoteStream) {
+            console.log('Attaching remote stream to video element');
             remoteVideoRef.current.srcObject = remoteStream;
+            remoteVideoRef.current.play().catch(err => {
+                console.error('Error playing remote video:', err);
+            });
         }
     }, [remoteStream]);
 
@@ -290,10 +351,24 @@ const Chat = () => {
             <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60'>
                 <div className='bg-[#0f1724] p-4 rounded-lg w-[95%] max-w-4xl flex gap-4'>
                     <div className='flex-1'>
-                        <video ref={remoteVideoRef} autoPlay playsInline className='w-full h-72 bg-black rounded' />
+                        <video 
+                            ref={remoteVideoRef} 
+                            autoPlay 
+                            playsInline 
+                            controls={false}
+                            className='w-full h-72 bg-black rounded object-cover'
+                        />
                     </div>
                     <div className='w-48 flex flex-col items-center gap-2'>
-                        <video ref={localVideoRef} autoPlay muted playsInline className='w-full h-36 bg-black rounded' />
+                        <video 
+                            ref={localVideoRef} 
+                            autoPlay 
+                            muted 
+                            playsInline 
+                            controls={false}
+                            style={{ transform: 'scaleX(-1)' }}
+                            className='w-full h-36 bg-black rounded object-cover'
+                        />
                         <div className='flex gap-2 mt-2'>
                             {incomingCall && <button onClick={handleAcceptCall} className='px-3 py-1 bg-green-600 rounded'>Accept</button>}
                             <button onClick={toggleMute} className='px-3 py-1 bg-gray-700 rounded flex items-center gap-2'>
