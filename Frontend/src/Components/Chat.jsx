@@ -195,22 +195,40 @@ const Chat = () => {
     };
 
     const handleStartCall = async () => {
-        if (!selectedUser || !socket) return;
-        try {
-            const stream = await startLocalStream();
-            const pc = createPeerConnection(selectedUser._id);
-            if (stream) {
-                stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-            }
+    if (!selectedUser || !socket) return;
 
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            socket.emit('call-user', { to: selectedUser._id, offer });
-            setInCall(true);
-        } catch (err) {
-            console.error('Error starting call', err);
+    try {
+        const stream = await startLocalStream();
+
+        console.log("Local stream tracks:", stream.getTracks());
+
+        const pc = createPeerConnection(selectedUser._id);
+
+        if (stream) {
+            stream.getTracks().forEach((track) => {
+                pc.addTrack(track, stream);
+            });
         }
-    };
+
+        pc.getSenders().forEach(sender => {
+            console.log("Sender:", sender.track);
+        });
+
+        const offer = await pc.createOffer();
+
+        await pc.setLocalDescription(offer);
+
+        socket.emit('call-user', {
+            to: selectedUser._id,
+            offer
+        });
+
+        setInCall(true);
+
+    } catch (err) {
+        console.error("Error starting call:", err);
+    }
+};
 
     const handleAcceptCall = async () => {
         if (!incomingCall || !socket) return;
@@ -266,80 +284,54 @@ const Chat = () => {
     };
 
     // attach streams to video elements
-   useEffect(() => {
-  const localVideo = localVideoRef.current;
-  if (localVideo && localStream) {
-    console.log('Attaching local stream to video element, tracks:', localStream.getTracks().length);
+ useEffect(() => {
+    const localVideo = localVideoRef.current;
 
-    try {
-      // Do NOT stop tracks here — just replace srcObject
-      localVideo.srcObject = localStream;
+    if (!localVideo || !localStream) return;
 
-      // Mute local video to avoid echo and autoplay issues
-      localVideo.muted = true;
+    console.log("Setting local video stream");
 
-      localVideo.onloadedmetadata = () => {
-        console.log('Local video metadata loaded');
-        localVideo.play().catch(err => {
-          console.error('Error auto-playing local video:', err);
-        });
-      };
+    localVideo.srcObject = localStream;
+    localVideo.muted = true;
 
-      if (localVideo.readyState >= 2) {
-        localVideo.play().catch(err => {
-          console.warn('Local video play error:', err);
-        });
-      }
+    const playVideo = async () => {
+        try {
+            await localVideo.play();
+            console.log("Local video playing");
+        } catch (err) {
+            console.error("Local video play failed:", err);
+        }
+    };
 
-      console.log('Local video element state:', {
-        readyState: localVideo.readyState,
-        networkState: localVideo.networkState,
-        paused: localVideo.paused
-      });
-    } catch (err) {
-      console.error('Error attaching local stream:', err);
-    }
-  }
+    playVideo();
 
-  return () => {
-    // Cleanup: don’t stop tracks here, just clear srcObject
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = null;
-    }
-  };
+    return () => {
+        if (localVideo) {
+            localVideo.srcObject = null;
+        }
+    };
 }, [localStream]);
 
     useEffect(() => {
-        const remoteVideo = remoteVideoRef.current;
-        if (remoteVideo && remoteStream) {
-            console.log('Attaching remote stream to video element, tracks:', remoteStream.getTracks().length);
-            try {
-                remoteVideo.srcObject = remoteStream;
-                
-                remoteVideo.onloadedmetadata = () => {
-                    console.log('Remote video metadata loaded');
-                    remoteVideo.play().catch(err => {
-                        console.error('Error auto-playing remote video:', err);
-                    });
-                };
-                
-                // Fallback: play immediately
-                if (remoteVideo.readyState >= 2) {
-                    remoteVideo.play().catch(err => {
-                        console.warn('Remote video play error:', err);
-                    });
-                }
-                
-                console.log('Remote video element state:', {
-                    readyState: remoteVideo.readyState,
-                    networkState: remoteVideo.networkState,
-                    paused: remoteVideo.paused
-                });
-            } catch (err) {
-                console.error('Error attaching remote stream:', err);
-            }
+    const remoteVideo = remoteVideoRef.current;
+
+    if (!remoteVideo || !remoteStream) return;
+
+    console.log("Setting remote video stream");
+
+    remoteVideo.srcObject = remoteStream;
+
+    const playVideo = async () => {
+        try {
+            await remoteVideo.play();
+            console.log("Remote video playing");
+        } catch (err) {
+            console.error("Remote video play failed:", err);
         }
-    }, [remoteStream]);
+    };
+
+    playVideo();
+}, [remoteStream]);
 
     useEffect(()=>{
         if(scrollEnd.current && messages){
@@ -406,7 +398,12 @@ const Chat = () => {
                     </div>
                     <div className='w-30 flex flex-col items-center gap-2'>
                         <video 
-                            ref={localVideoRef} 
+                                ref={localVideoRef}
+                                autoPlay
+                                muted
+                                playsInline
+                                className='w-20 h-20 bg-black rounded object-cover scale-x-[-1]'
+                            />
                             autoPlay
                             muted
                             playsInline
