@@ -403,20 +403,6 @@ const Chat = () => {
                                 muted
                                 playsInline
                                 className='w-20 h-20 bg-black rounded object-cover scale-x-[-1]'
-                            />
-                            autoPlay
-                            muted
-                            playsInline
-                            controls={false}
-                            webkit-playsinline="true"
-                            x5-playsinline="true"
-                            style={{ 
-                                transform: 'scaleX(-1)',
-                                WebkitTransform: 'scaleX(-1)',
-                                WebkitBackfaceVisibility: 'hidden',
-                                backfaceVisibility: 'hidden'
-                            }}
-                            className='w-20 h-20 bg-black rounded object-cover'
                         />
                         <div className='flex gap-2 mt-2'>
                             {incomingCall && <button onClick={handleAcceptCall} className='px-3 py-1 bg-green-600 rounded'>Accept</button>}
